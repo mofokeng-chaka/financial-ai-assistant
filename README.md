@@ -6,6 +6,8 @@ A production-grade customer service AI assistant for financial services, built w
 
 ![Architecture Diagram](architecture.png)
 
+> Architecture source: [architecture.drawio](architecture.drawio) — open with [draw.io](https://app.diagrams.net/)
+
 ## Features
 
 - **Model Abstraction Layer** — Lambda function with AppConfig-driven model selection
