@@ -4,31 +4,7 @@ A production-grade customer service AI assistant for financial services, built w
 
 ## Architecture
 
-```
-┌──────────┐     ┌─────────────┐     ┌──────────────────────────────────────┐
-│  Client  │────▶│ API Gateway │────▶│     Step Functions (Circuit Breaker) │
-└──────────┘     │ POST /gen   │     │                                      │
-                 │ GET /health │     │  ┌─────────────┐  retry 2x           │
-                 └─────────────┘     │  │ Primary     │──────────┐          │
-                                     │  │ (Sonnet 4.5)│          │          │
-                                     │  └──────┬──────┘          │          │
-                                     │         │ fail            │          │
-                                     │  ┌──────▼──────┐  retry 2x          │
-                                     │  │ Fallback    │──────────┤          │
-                                     │  │ (Nova Lite) │          │          │
-                                     │  └──────┬──────┘          │          │
-                                     │         │ fail            │          │
-                                     │  ┌──────▼──────┐          │          │
-                                     │  │ Graceful    │          │          │
-                                     │  │ Degradation │          │          │
-                                     │  └─────────────┘          │          │
-                                     └──────────────────────────────────────┘
-                                              │
-                                     ┌────────▼────────┐
-                                     │   AppConfig     │
-                                     │ (Model Select)  │
-                                     └─────────────────┘
-```
+![Architecture Diagram](architecture.png)
 
 ## Features
 
