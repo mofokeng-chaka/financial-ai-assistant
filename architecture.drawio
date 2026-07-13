@@ -1,160 +1,161 @@
-<mxfile host="app.diagrams.net" modified="2026-07-13T06:30:00.000Z" agent="draw.io" version="24.0.0">
-  <diagram id="financial-ai-assistant" name="Architecture">
-    <mxGraphModel dx="1422" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1000" math="0" shadow="0">
+<mxfile host="app.diagrams.net">
+  <diagram id="financial-ai" name="Architecture">
+    <mxGraphModel dx="1800" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1200" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
 
-        <!-- Title -->
-        <mxCell id="title" value="Financial AI Assistant - Circuit Breaker Architecture" style="text;html=1;align=center;verticalAlign=middle;fontSize=20;fontStyle=1;fontColor=#232F3E;" vertex="1" parent="1">
-          <mxGeometry x="400" y="20" width="500" height="40" as="geometry" />
-        </mxCell>
-
         <!-- Client -->
-        <mxCell id="user" value="Client
-Application" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.user;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;pointerEvents=1;fontStyle=0;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="620" y="70" width="60" height="60" as="geometry" />
+        <mxCell id="user" value="" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.user;pointerEvents=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="500" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="user_label" value="Client Application" style="text;html=0;align=center;verticalAlign=top;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="15" y="570" width="110" height="20" as="geometry" />
         </mxCell>
 
         <!-- Route53 -->
-        <mxCell id="route53" value="Route53
-Failover DNS" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.route_53;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;pointerEvents=1;fontStyle=0;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="620" y="190" width="60" height="60" as="geometry" />
+        <mxCell id="route53" value="" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.route_53;pointerEvents=1;" vertex="1" parent="1">
+          <mxGeometry x="240" y="500" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="route53_label" value="Route53&#xa;Failover DNS" style="text;html=0;align=center;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="215" y="570" width="110" height="30" as="geometry" />
         </mxCell>
 
-        <!-- Primary Region Cluster -->
-        <mxCell id="primary_region" value="Primary Region (us-east-1)" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=1;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_region;stroke=#147EBA;fillColor=#E6F2F8;verticalAlign=top;align=center;spacingTop=7;dashed=0;" vertex="1" parent="1">
-          <mxGeometry x="120" y="310" width="750" height="640" as="geometry" />
+        <!-- API Gateway (Primary) -->
+        <mxCell id="apigw" value="" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.api_gateway;pointerEvents=1;" vertex="1" parent="1">
+          <mxGeometry x="460" y="500" width="60" height="60" as="geometry" />
         </mxCell>
-
-        <!-- API Gateway -->
-        <mxCell id="apigw" value="API Gateway
-POST /generate
-GET /health" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.api_gateway;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;pointerEvents=1;fontStyle=0;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="450" y="360" width="60" height="60" as="geometry" />
-        </mxCell>
-
-        <!-- Step Functions Cluster -->
-        <mxCell id="sfn_cluster" value="Step Functions - Circuit Breaker" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=11;fontStyle=1;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_vpc;stroke=#8C4FFF;fillColor=#F2E6FF;verticalAlign=top;align=center;spacingTop=7;dashed=0;" vertex="1" parent="1">
-          <mxGeometry x="300" y="480" width="400" height="420" as="geometry" />
+        <mxCell id="apigw_label" value="API Gateway&#xa;POST /generate&#xa;GET /health" style="text;html=0;align=center;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="425" y="570" width="130" height="40" as="geometry" />
         </mxCell>
 
         <!-- Step Functions -->
-        <mxCell id="sfn" value="Express
-State Machine" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.step_functions;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;pointerEvents=1;fontStyle=0;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="465" y="520" width="50" height="50" as="geometry" />
+        <mxCell id="sfn" value="" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.step_functions;pointerEvents=1;" vertex="1" parent="1">
+          <mxGeometry x="680" y="500" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="sfn_label" value="Step Functions&#xa;Express State Machine" style="text;html=0;align=center;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="640" y="570" width="140" height="30" as="geometry" />
         </mxCell>
 
-        <!-- Stage 1: Primary Lambda -->
-        <mxCell id="primary_lambda" value="Stage 1: Primary
-Model Abstraction
-(Claude Sonnet 4.5)" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;pointerEvents=1;fontStyle=0;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="380" y="630" width="50" height="50" as="geometry" />
+        <!-- Primary Lambda -->
+        <mxCell id="primary" value="" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;pointerEvents=1;" vertex="1" parent="1">
+          <mxGeometry x="920" y="500" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="primary_label" value="Stage 1: Primary&#xa;Model Abstraction&#xa;(Claude Sonnet 4.5)" style="text;html=0;align=center;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="875" y="570" width="150" height="40" as="geometry" />
         </mxCell>
 
-        <!-- Stage 2: Fallback Lambda -->
-        <mxCell id="fallback_lambda" value="Stage 2: Fallback
-(Nova Lite)" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;pointerEvents=1;fontStyle=0;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="500" y="730" width="50" height="50" as="geometry" />
+        <!-- Fallback Lambda -->
+        <mxCell id="fallback" value="" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;pointerEvents=1;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="500" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="fallback_label" value="Stage 2: Fallback&#xa;(Nova Lite)" style="text;html=0;align=center;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1125" y="570" width="130" height="30" as="geometry" />
         </mxCell>
 
-        <!-- Stage 3: Degradation Lambda -->
-        <mxCell id="degraded_lambda" value="Stage 3: Graceful
-Degradation" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;pointerEvents=1;fontStyle=0;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="610" y="830" width="50" height="50" as="geometry" />
+        <!-- Graceful Degradation Lambda -->
+        <mxCell id="degraded" value="" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;pointerEvents=1;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="500" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="degraded_label" value="Stage 3: Graceful&#xa;Degradation" style="text;html=0;align=center;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1365" y="570" width="130" height="30" as="geometry" />
         </mxCell>
 
         <!-- AppConfig -->
-        <mxCell id="appconfig" value="AWS AppConfig
-Model Selection
-Strategy" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.systems_manager;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;pointerEvents=1;fontStyle=0;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="180" y="630" width="50" height="50" as="geometry" />
+        <mxCell id="appconfig" value="" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.systems_manager;pointerEvents=1;" vertex="1" parent="1">
+          <mxGeometry x="920" y="300" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="appconfig_label" value="AWS AppConfig&#xa;Model Selection Strategy" style="text;html=0;align=center;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="875" y="370" width="150" height="30" as="geometry" />
         </mxCell>
 
-        <!-- Bedrock Models -->
-        <mxCell id="bedrock_primary" value="Claude Sonnet 4.5
-(Primary)" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.sagemaker;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;pointerEvents=1;fontStyle=0;fontSize=10;fillColor=#00A4A6;" vertex="1" parent="1">
-          <mxGeometry x="180" y="780" width="50" height="50" as="geometry" />
+        <!-- Bedrock - Claude Sonnet -->
+        <mxCell id="bedrock1" value="" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.sagemaker;pointerEvents=1;" vertex="1" parent="1">
+          <mxGeometry x="920" y="720" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="bedrock1_label" value="Claude Sonnet 4.5&#xa;(Primary)" style="text;html=0;align=center;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="885" y="790" width="130" height="30" as="geometry" />
         </mxCell>
 
-        <mxCell id="bedrock_fallback" value="Nova Lite
-(Fallback)" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.sagemaker;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;pointerEvents=1;fontStyle=0;fontSize=10;fillColor=#00A4A6;" vertex="1" parent="1">
-          <mxGeometry x="300" y="780" width="50" height="50" as="geometry" />
+        <!-- Bedrock - Nova Lite -->
+        <mxCell id="bedrock2" value="" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.sagemaker;pointerEvents=1;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="720" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="bedrock2_label" value="Amazon Nova Lite&#xa;(Fallback)" style="text;html=0;align=center;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1125" y="790" width="130" height="30" as="geometry" />
         </mxCell>
 
         <!-- CloudWatch -->
-        <mxCell id="cloudwatch" value="CloudWatch
-Alarms &amp; Logs" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudwatch;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;pointerEvents=1;fontStyle=0;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="760" y="630" width="50" height="50" as="geometry" />
+        <mxCell id="cw" value="" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudwatch;pointerEvents=1;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="720" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cw_label" value="CloudWatch&#xa;Alarms &amp; Logs" style="text;html=0;align=center;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1370" y="790" width="120" height="30" as="geometry" />
         </mxCell>
 
-        <!-- Secondary Region Cluster -->
-        <mxCell id="secondary_region" value="Secondary Region (us-west-2)" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=1;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_region;stroke=#147EBA;fillColor=#E6F2F8;verticalAlign=top;align=center;spacingTop=7;dashed=1;" vertex="1" parent="1">
-          <mxGeometry x="1000" y="310" width="250" height="250" as="geometry" />
+        <!-- Secondary Region - API Gateway -->
+        <mxCell id="apigw2" value="" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.api_gateway;pointerEvents=1;" vertex="1" parent="1">
+          <mxGeometry x="460" y="800" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="apigw2_label" value="API Gateway&#xa;(Standby)" style="text;html=0;align=center;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="430" y="870" width="120" height="30" as="geometry" />
         </mxCell>
 
-        <mxCell id="apigw2" value="API Gateway
-(Standby)" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.api_gateway;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;pointerEvents=1;fontStyle=0;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1095" y="360" width="60" height="60" as="geometry" />
+        <!-- Secondary Region - Step Functions -->
+        <mxCell id="sfn2" value="" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.step_functions;pointerEvents=1;" vertex="1" parent="1">
+          <mxGeometry x="680" y="800" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="sfn2_label" value="Circuit Breaker&#xa;(Standby)" style="text;html=0;align=center;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="645" y="870" width="130" height="30" as="geometry" />
         </mxCell>
 
-        <mxCell id="sfn2" value="Circuit Breaker
-(Standby)" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.step_functions;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;pointerEvents=1;fontStyle=0;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1095" y="470" width="60" height="60" as="geometry" />
+        <!-- Region Labels -->
+        <mxCell id="region1_label" value="Primary Region (us-east-1)" style="text;html=0;align=left;verticalAlign=top;fontSize=14;fontStyle=1;fontColor=#147EBA;" vertex="1" parent="1">
+          <mxGeometry x="420" y="250" width="250" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="region2_label" value="Secondary Region (us-west-2)" style="text;html=0;align=left;verticalAlign=top;fontSize=14;fontStyle=1;fontColor=#999999;" vertex="1" parent="1">
+          <mxGeometry x="420" y="760" width="250" height="25" as="geometry" />
         </mxCell>
 
-        <!-- Arrows -->
-        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#232F3E;strokeWidth=2;" edge="1" source="user" target="route53" parent="1">
+        <!-- Arrows - Main Flow -->
+        <mxCell id="a1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;" edge="1" source="user" target="route53" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a2" value="Active" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;fontSize=10;" edge="1" source="route53" target="apigw" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;" edge="1" source="apigw" target="sfn" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a4" value="Try (retry 2x)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;fontSize=10;" edge="1" source="sfn" target="primary" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a5" value="fail" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#DD344C;dashed=1;fontSize=10;fontColor=#DD344C;" edge="1" source="primary" target="fallback" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a6" value="fail" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#DD344C;dashed=1;fontSize=10;fontColor=#DD344C;" edge="1" source="fallback" target="degraded" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
-        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#232F3E;strokeWidth=2;" edge="1" source="route53" target="apigw" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-          <mxCell value="Active" style="edgeLabel;fontSize=10;" vertex="1" connectable="0" as="label" />
-        </mxCell>
-
-        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#999999;strokeWidth=1;dashed=1;" edge="1" source="route53" target="apigw2" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-          <mxCell value="Failover" style="edgeLabel;fontSize=10;fontColor=#999999;" vertex="1" connectable="0" as="label" />
-        </mxCell>
-
-        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#232F3E;strokeWidth=2;" edge="1" source="apigw" target="sfn" parent="1">
+        <!-- Arrows - Model connections -->
+        <mxCell id="a7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=1;" edge="1" source="primary" target="bedrock1" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-
-        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#232F3E;strokeWidth=2;" edge="1" source="sfn" target="primary_lambda" parent="1">
+        <mxCell id="a8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=1;" edge="1" source="fallback" target="bedrock2" parent="1">
           <mxGeometry relative="1" as="geometry" />
-          <mxCell value="Try (retry 2x)" style="edgeLabel;fontSize=10;" vertex="1" connectable="0" as="label" />
         </mxCell>
-
-        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#DD344C;strokeWidth=2;dashed=1;" edge="1" source="primary_lambda" target="fallback_lambda" parent="1">
+        <mxCell id="a9" value="Config" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=1;dashed=1;strokeColor=#666666;fontSize=10;fontColor=#666666;" edge="1" source="primary" target="appconfig" parent="1">
           <mxGeometry relative="1" as="geometry" />
-          <mxCell value="fail" style="edgeLabel;fontSize=10;fontColor=#DD344C;" vertex="1" connectable="0" as="label" />
         </mxCell>
-
-        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#DD344C;strokeWidth=2;dashed=1;" edge="1" source="fallback_lambda" target="degraded_lambda" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-          <mxCell value="fail" style="edgeLabel;fontSize=10;fontColor=#DD344C;" vertex="1" connectable="0" as="label" />
-        </mxCell>
-
-        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#999999;strokeWidth=1;dashed=1;" edge="1" source="primary_lambda" target="appconfig" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-          <mxCell value="Config" style="edgeLabel;fontSize=10;fontColor=#666666;" vertex="1" connectable="0" as="label" />
-        </mxCell>
-
-        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#232F3E;strokeWidth=1;" edge="1" source="primary_lambda" target="bedrock_primary" parent="1">
+        <mxCell id="a10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=1;dashed=1;strokeColor=#666666;" edge="1" source="degraded" target="cw" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
-        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#232F3E;strokeWidth=1;" edge="1" source="fallback_lambda" target="bedrock_fallback" parent="1">
+        <!-- Arrows - Failover -->
+        <mxCell id="a11" value="Failover" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=1;dashed=1;strokeColor=#999999;fontSize=10;fontColor=#999999;" edge="1" source="route53" target="apigw2" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-
-        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#999999;strokeWidth=1;dashed=1;" edge="1" source="primary_lambda" target="cloudwatch" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#999999;strokeWidth=1;dashed=1;" edge="1" source="apigw2" target="sfn2" parent="1">
+        <mxCell id="a12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=1;dashed=1;strokeColor=#999999;" edge="1" source="apigw2" target="sfn2" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
