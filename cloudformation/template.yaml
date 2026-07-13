@@ -406,7 +406,7 @@ Resources:
       MethodResponses:
         - StatusCode: 200
 
-  # GET /health - Health check endpoint
+  # GET /health - Health check endpoint (Lambda-backed for reliable Route53 checks)
   HealthMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -415,16 +415,93 @@ Resources:
       HttpMethod: GET
       AuthorizationType: NONE
       Integration:
-        Type: MOCK
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseTemplates:
-              application/json: !Sub |
-                {"status":"healthy","service":"financial-ai-assistant","environment":"${Environment}","region":"${AWS::Region}"}
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HealthCheckLambda.Arn}/invocations'
       MethodResponses:
         - StatusCode: 200
+
+  HealthCheckLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'financial-ai-health-${Environment}'
+      Description: Health check endpoint that validates Bedrock connectivity
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.12
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          PRIMARY_MODEL: !Ref PrimaryModel
+          FALLBACK_MODEL: !Ref FallbackModel
+          ENVIRONMENT: !Ref Environment
+      Code:
+        ZipFile: |
+          import boto3, json, os, time
+          
+          REGION = os.environ.get("AWS_REGION", "us-east-1")
+          PRIMARY_MODEL = os.environ.get("PRIMARY_MODEL", "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
+          FALLBACK_MODEL = os.environ.get("FALLBACK_MODEL", "us.amazon.nova-lite-v1:0")
+          ENVIRONMENT = os.environ.get("ENVIRONMENT", "prod")
+          
+          def lambda_handler(event, context):
+              checks = {"bedrock": "unknown", "primary_model": "unknown", "fallback_model": "unknown"}
+              overall = "healthy"
+              
+              try:
+                  bedrock = boto3.client("bedrock-runtime", region_name=REGION)
+                  
+                  # Quick connectivity test with minimal tokens
+                  try:
+                      resp = bedrock.converse(
+                          modelId=PRIMARY_MODEL,
+                          messages=[{"role": "user", "content": [{"text": "ping"}]}],
+                          inferenceConfig={"maxTokens": 5, "temperature": 0})
+                      checks["primary_model"] = "available"
+                  except Exception as e:
+                      checks["primary_model"] = f"degraded: {type(e).__name__}"
+                      overall = "degraded"
+                  
+                  # Test fallback model
+                  try:
+                      resp = bedrock.converse(
+                          modelId=FALLBACK_MODEL,
+                          messages=[{"role": "user", "content": [{"text": "ping"}]}],
+                          inferenceConfig={"maxTokens": 5, "temperature": 0})
+                      checks["fallback_model"] = "available"
+                  except Exception as e:
+                      checks["fallback_model"] = f"degraded: {type(e).__name__}"
+                      if overall == "degraded":
+                          overall = "unhealthy"
+                  
+                  checks["bedrock"] = "connected"
+              except Exception as e:
+                  checks["bedrock"] = f"unreachable: {type(e).__name__}"
+                  overall = "unhealthy"
+              
+              status_code = 200 if overall != "unhealthy" else 503
+              
+              return {
+                  "statusCode": status_code,
+                  "headers": {"Content-Type": "application/json"},
+                  "body": json.dumps({
+                      "status": overall,
+                      "service": "financial-ai-assistant",
+                      "environment": ENVIRONMENT,
+                      "region": REGION,
+                      "checks": checks,
+                      "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                  })
+              }
+
+  HealthCheckLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref HealthCheckLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/GET/health'
 
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
@@ -433,6 +510,7 @@ Resources:
       - HealthMethod
     Properties:
       RestApiId: !Ref ApiGateway
+      Description: !Sub 'Deployment ${AWS::StackName} - auto-redeploy on changes'
 
   ApiStage:
     Type: AWS::ApiGateway::Stage
@@ -445,6 +523,7 @@ Resources:
           HttpMethod: '*'
           ThrottlingBurstLimit: 100
           ThrottlingRateLimit: 50
+          LoggingLevel: ERROR
 
   # ============================================================
   # APPCONFIG
