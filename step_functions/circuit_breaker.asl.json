@@ -1,0 +1,168 @@
+{
+  "Comment": "Financial AI Assistant - Circuit Breaker Pattern. Tries primary model, falls back to simpler model, then degrades gracefully.",
+  "StartAt": "ValidateInput",
+  "States": {
+    "ValidateInput": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.prompt",
+          "IsPresent": true,
+          "Next": "TryPrimaryModel"
+        }
+      ],
+      "Default": "InputError"
+    },
+    "InputError": {
+      "Type": "Fail",
+      "Error": "InvalidInput",
+      "Cause": "Missing required 'prompt' field in request"
+    },
+    "TryPrimaryModel": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${PrimaryModelLambdaArn}",
+        "Payload": {
+          "prompt.$": "$.prompt",
+          "use_case.$": "$.use_case",
+          "session_id.$": "$.session_id"
+        }
+      },
+      "ResultPath": "$.primaryResult",
+      "ResultSelector": {
+        "statusCode.$": "$.Payload.statusCode",
+        "body.$": "$.Payload.body"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        },
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 1,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.primaryError",
+          "Next": "LogPrimaryFailure"
+        }
+      ],
+      "TimeoutSeconds": 30,
+      "Next": "FormatResponse"
+    },
+    "LogPrimaryFailure": {
+      "Type": "Pass",
+      "Parameters": {
+        "prompt.$": "$.prompt",
+        "use_case.$": "$.use_case",
+        "session_id.$": "$.session_id",
+        "failedStage": "primary",
+        "error.$": "$.primaryError"
+      },
+      "Next": "TryFallbackModel"
+    },
+    "TryFallbackModel": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${FallbackModelLambdaArn}",
+        "Payload": {
+          "prompt.$": "$.prompt",
+          "use_case.$": "$.use_case",
+          "session_id.$": "$.session_id",
+          "is_fallback": true
+        }
+      },
+      "ResultPath": "$.fallbackResult",
+      "ResultSelector": {
+        "statusCode.$": "$.Payload.statusCode",
+        "body.$": "$.Payload.body"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException"],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        },
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 1,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.fallbackError",
+          "Next": "LogFallbackFailure"
+        }
+      ],
+      "TimeoutSeconds": 20,
+      "Next": "FormatFallbackResponse"
+    },
+    "LogFallbackFailure": {
+      "Type": "Pass",
+      "Parameters": {
+        "prompt.$": "$.prompt",
+        "use_case.$": "$.use_case",
+        "session_id.$": "$.session_id",
+        "failedStage": "fallback",
+        "error.$": "$.fallbackError"
+      },
+      "Next": "GracefulDegradation"
+    },
+    "GracefulDegradation": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${DegradationLambdaArn}",
+        "Payload": {
+          "prompt.$": "$.prompt",
+          "use_case.$": "$.use_case",
+          "session_id.$": "$.session_id"
+        }
+      },
+      "ResultPath": "$.degradedResult",
+      "ResultSelector": {
+        "statusCode.$": "$.Payload.statusCode",
+        "body.$": "$.Payload.body"
+      },
+      "TimeoutSeconds": 5,
+      "Next": "FormatDegradedResponse"
+    },
+    "FormatResponse": {
+      "Type": "Pass",
+      "Parameters": {
+        "statusCode": 200,
+        "body.$": "$.primaryResult.body"
+      },
+      "End": true
+    },
+    "FormatFallbackResponse": {
+      "Type": "Pass",
+      "Parameters": {
+        "statusCode": 200,
+        "body.$": "$.fallbackResult.body"
+      },
+      "End": true
+    },
+    "FormatDegradedResponse": {
+      "Type": "Pass",
+      "Parameters": {
+        "statusCode": 503,
+        "body.$": "$.degradedResult.body"
+      },
+      "End": true
+    }
+  }
+}

@@ -1,0 +1,551 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Financial AI Assistant - Cross-Region Deployment with Circuit Breaker Pattern'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, staging, prod]
+    Description: Deployment environment
+  PrimaryModel:
+    Type: String
+    Default: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0'
+    Description: Primary Bedrock model ID
+  FallbackModel:
+    Type: String
+    Default: 'us.amazon.nova-lite-v1:0'
+    Description: Fallback Bedrock model ID
+  MaxTokens:
+    Type: Number
+    Default: 1000
+    Description: Maximum tokens for model responses
+
+Resources:
+  # ============================================================
+  # IAM ROLES
+  # ============================================================
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'financial-ai-lambda-role-${Environment}-${AWS::Region}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: BedrockAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock-runtime:InvokeModel
+                  - bedrock-runtime:Converse
+                Resource: '*'
+        - PolicyName: AppConfigAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - appconfig:GetConfiguration
+                  - appconfig:GetLatestConfiguration
+                  - appconfig:StartConfigurationSession
+                Resource: '*'
+
+  StepFunctionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'financial-ai-sfn-role-${Environment}-${AWS::Region}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambdas
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt ModelAbstractionLambda.Arn
+                  - !GetAtt FallbackModelLambda.Arn
+                  - !GetAtt GracefulDegradationLambda.Arn
+
+  ApiGatewayRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'financial-ai-apigw-role-${Environment}-${AWS::Region}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeStepFunctions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:StartSyncExecution
+                Resource: !GetAtt CircuitBreakerStateMachine.Arn
+
+  # ============================================================
+  # LAMBDA FUNCTIONS
+  # ============================================================
+  ModelAbstractionLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'financial-ai-primary-${Environment}'
+      Description: Primary model abstraction layer with AppConfig integration
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.12
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          APPCONFIG_APPLICATION: FinancialAIAssistant
+          APPCONFIG_ENVIRONMENT: !Ref Environment
+          APPCONFIG_PROFILE: ModelSelectionStrategy
+          DEFAULT_MODEL: !Ref PrimaryModel
+          MAX_TOKENS: !Ref MaxTokens
+          AWS_REGION_OVERRIDE: !Ref AWS::Region
+      Code:
+        ZipFile: |
+          import boto3, json, os, time, logging
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          
+          AWS_REGION = os.environ.get("AWS_REGION_OVERRIDE", os.environ.get("AWS_REGION", "us-east-1"))
+          DEFAULT_MODEL = os.environ.get("DEFAULT_MODEL", "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
+          MAX_TOKENS = int(os.environ.get("MAX_TOKENS", "1000"))
+          bedrock_runtime = boto3.client("bedrock-runtime", region_name=AWS_REGION)
+          
+          SYSTEM_PROMPT = """You are a knowledgeable financial services assistant. Provide accurate, clear information about financial products. Include disclaimers for investment topics. Never provide specific investment recommendations."""
+          
+          _config_cache = {"data": None, "timestamp": 0, "ttl": 60}
+          
+          def get_appconfig():
+              now = time.time()
+              if _config_cache["data"] and (now - _config_cache["timestamp"]) < _config_cache["ttl"]:
+                  return _config_cache["data"]
+              try:
+                  client = boto3.client("appconfigdata", region_name=AWS_REGION)
+                  session = client.start_configuration_session(
+                      ApplicationIdentifier=os.environ.get("APPCONFIG_APPLICATION", "FinancialAIAssistant"),
+                      EnvironmentIdentifier=os.environ.get("APPCONFIG_ENVIRONMENT", "prod"),
+                      ConfigurationProfileIdentifier=os.environ.get("APPCONFIG_PROFILE", "ModelSelectionStrategy"))
+                  resp = client.get_latest_configuration(ConfigurationToken=session["InitialConfigurationToken"])
+                  content = resp["Configuration"].read()
+                  if content:
+                      config = json.loads(content)
+                      _config_cache["data"] = config
+                      _config_cache["timestamp"] = now
+                      return config
+                  return _config_cache["data"] or {"primary_model": DEFAULT_MODEL}
+              except Exception as e:
+                  logger.warning(f"AppConfig failed: {e}")
+                  return {"primary_model": DEFAULT_MODEL, "use_case_models": {}}
+          
+          def lambda_handler(event, context):
+              start_time = time.time()
+              prompt = event.get("prompt", "")
+              use_case = event.get("use_case", "general")
+              session_id = event.get("session_id", "anonymous")
+              if not prompt:
+                  return {"statusCode": 400, "body": json.dumps({"error": "Missing prompt"})}
+              config = get_appconfig()
+              model_id = config.get("use_case_models", {}).get(use_case, config.get("primary_model", DEFAULT_MODEL))
+              logger.info(f"Model: {model_id}, use_case: {use_case}")
+              response = bedrock_runtime.converse(
+                  modelId=model_id,
+                  messages=[{"role": "user", "content": [{"text": prompt}]}],
+                  system=[{"text": SYSTEM_PROMPT}],
+                  inferenceConfig={"temperature": 0.3, "maxTokens": MAX_TOKENS})
+              text = "".join(b.get("text", "") for b in response["output"]["message"]["content"])
+              return {"statusCode": 200, "body": json.dumps({
+                  "response": text,
+                  "metadata": {"model_used": model_id, "use_case": use_case,
+                              "latency_seconds": round(time.time() - start_time, 3),
+                              "session_id": session_id, "region": AWS_REGION}})}
+
+  FallbackModelLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'financial-ai-fallback-${Environment}'
+      Description: Fallback model using simpler, more reliable model
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.12
+      Timeout: 20
+      MemorySize: 128
+      Environment:
+        Variables:
+          FALLBACK_MODEL: !Ref FallbackModel
+          AWS_REGION_OVERRIDE: !Ref AWS::Region
+      Code:
+        ZipFile: |
+          import boto3, json, os, time, logging
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          AWS_REGION = os.environ.get("AWS_REGION_OVERRIDE", os.environ.get("AWS_REGION", "us-east-1"))
+          FALLBACK_MODEL = os.environ.get("FALLBACK_MODEL", "us.amazon.nova-lite-v1:0")
+          bedrock_runtime = boto3.client("bedrock-runtime", region_name=AWS_REGION)
+          SYSTEM_PROMPT = "You are a helpful financial services assistant. Provide clear, accurate answers."
+          
+          def lambda_handler(event, context):
+              start_time = time.time()
+              prompt = event.get("prompt", "")
+              use_case = event.get("use_case", "general")
+              session_id = event.get("session_id", "anonymous")
+              if not prompt:
+                  return {"statusCode": 400, "body": json.dumps({"error": "Missing prompt"})}
+              logger.info(f"Fallback: {FALLBACK_MODEL}")
+              response = bedrock_runtime.converse(
+                  modelId=FALLBACK_MODEL,
+                  messages=[{"role": "user", "content": [{"text": prompt}]}],
+                  system=[{"text": SYSTEM_PROMPT}],
+                  inferenceConfig={"temperature": 0.2, "maxTokens": 500})
+              text = "".join(b.get("text", "") for b in response["output"]["message"]["content"])
+              return {"statusCode": 200, "body": json.dumps({
+                  "response": text,
+                  "metadata": {"model_used": f"FALLBACK:{FALLBACK_MODEL}", "use_case": use_case,
+                              "latency_seconds": round(time.time() - start_time, 3),
+                              "session_id": session_id, "is_fallback": True}})}
+
+  GracefulDegradationLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'financial-ai-degraded-${Environment}'
+      Description: Graceful degradation with pre-defined responses
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.12
+      Timeout: 5
+      MemorySize: 128
+      Code:
+        ZipFile: |
+          import json, logging
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          RESPONSES = {
+              "general": "Thank you for your question. Our AI assistant is temporarily unavailable. Please try again shortly or call 1-800-555-0100.",
+              "product_question": "I can't access product information right now. Please visit our website or call 1-800-555-0100.",
+              "account_inquiry": "Account inquiries are temporarily unavailable. For urgent matters, call 1-800-555-0100.",
+              "compliance": "Compliance services are temporarily unavailable. Contact compliance@example.com.",
+          }
+          def lambda_handler(event, context):
+              use_case = event.get("use_case", "general")
+              session_id = event.get("session_id", "anonymous")
+              logger.warning(f"Degraded service: use_case={use_case}, session={session_id}")
+              return {"statusCode": 200, "body": json.dumps({
+                  "response": RESPONSES.get(use_case, RESPONSES["general"]),
+                  "metadata": {"model_used": "DEGRADED_SERVICE", "use_case": use_case,
+                              "session_id": session_id, "is_degraded": True}})}
+
+  # ============================================================
+  # STEP FUNCTIONS (Circuit Breaker)
+  # ============================================================
+  CircuitBreakerStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub 'financial-ai-circuit-breaker-${Environment}'
+      StateMachineType: EXPRESS
+      RoleArn: !GetAtt StepFunctionsRole.Arn
+      Definition:
+        Comment: "Financial AI Assistant - Circuit Breaker Pattern"
+        StartAt: ValidateInput
+        States:
+          ValidateInput:
+            Type: Choice
+            Choices:
+              - Variable: "$.prompt"
+                IsPresent: true
+                Next: TryPrimaryModel
+            Default: InputError
+          InputError:
+            Type: Fail
+            Error: InvalidInput
+            Cause: "Missing required 'prompt' field"
+          TryPrimaryModel:
+            Type: Task
+            Resource: "arn:aws:states:::lambda:invoke"
+            Parameters:
+              FunctionName: !GetAtt ModelAbstractionLambda.Arn
+              Payload:
+                prompt.$: "$.prompt"
+                use_case.$: "$.use_case"
+                session_id.$: "$.session_id"
+            ResultPath: "$.result"
+            ResultSelector:
+              statusCode.$: "$.Payload.statusCode"
+              body.$: "$.Payload.body"
+            Retry:
+              - ErrorEquals: ["Lambda.ServiceException", "Lambda.AWSLambdaException"]
+                IntervalSeconds: 1
+                MaxAttempts: 2
+                BackoffRate: 2
+            Catch:
+              - ErrorEquals: ["States.ALL"]
+                ResultPath: "$.error"
+                Next: TryFallbackModel
+            TimeoutSeconds: 30
+            Next: Success
+          TryFallbackModel:
+            Type: Task
+            Resource: "arn:aws:states:::lambda:invoke"
+            Parameters:
+              FunctionName: !GetAtt FallbackModelLambda.Arn
+              Payload:
+                prompt.$: "$.prompt"
+                use_case.$: "$.use_case"
+                session_id.$: "$.session_id"
+            ResultPath: "$.result"
+            ResultSelector:
+              statusCode.$: "$.Payload.statusCode"
+              body.$: "$.Payload.body"
+            Retry:
+              - ErrorEquals: ["Lambda.ServiceException", "Lambda.AWSLambdaException"]
+                IntervalSeconds: 1
+                MaxAttempts: 2
+                BackoffRate: 2
+            Catch:
+              - ErrorEquals: ["States.ALL"]
+                ResultPath: "$.error"
+                Next: GracefulDegradation
+            TimeoutSeconds: 20
+            Next: Success
+          GracefulDegradation:
+            Type: Task
+            Resource: "arn:aws:states:::lambda:invoke"
+            Parameters:
+              FunctionName: !GetAtt GracefulDegradationLambda.Arn
+              Payload:
+                prompt.$: "$.prompt"
+                use_case.$: "$.use_case"
+                session_id.$: "$.session_id"
+            ResultPath: "$.result"
+            ResultSelector:
+              statusCode.$: "$.Payload.statusCode"
+              body.$: "$.Payload.body"
+            TimeoutSeconds: 5
+            Next: Success
+          Success:
+            Type: Succeed
+
+  # ============================================================
+  # API GATEWAY
+  # ============================================================
+  ApiGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub 'financial-ai-api-${Environment}'
+      Description: Financial AI Assistant API with Step Functions backend
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  ApiResourceGenerate:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ParentId: !GetAtt ApiGateway.RootResourceId
+      PathPart: generate
+
+  ApiResourceHealth:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ParentId: !GetAtt ApiGateway.RootResourceId
+      PathPart: health
+
+  # POST /generate - Invoke the AI assistant
+  GenerateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref ApiResourceGenerate
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:states:action/StartSyncExecution'
+        Credentials: !GetAtt ApiGatewayRole.Arn
+        RequestTemplates:
+          application/json: !Sub |
+            {
+              "input": "$util.escapeJavaScript($input.body)",
+              "stateMachineArn": "${CircuitBreakerStateMachine.Arn}"
+            }
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: |
+                #set($output = $util.parseJson($input.path('$.output')))
+                #set($result = $util.parseJson($output.result.body))
+                {
+                  "response": $result.response,
+                  "metadata": $result.metadata
+                }
+      MethodResponses:
+        - StatusCode: 200
+
+  # GET /health - Health check endpoint
+  HealthMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref ApiResourceHealth
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: !Sub |
+                {"status":"healthy","service":"financial-ai-assistant","environment":"${Environment}","region":"${AWS::Region}"}
+      MethodResponses:
+        - StatusCode: 200
+
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - GenerateMethod
+      - HealthMethod
+    Properties:
+      RestApiId: !Ref ApiGateway
+
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref ApiGateway
+      DeploymentId: !Ref ApiDeployment
+      StageName: !Ref Environment
+      MethodSettings:
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          ThrottlingBurstLimit: 100
+          ThrottlingRateLimit: 50
+
+  # ============================================================
+  # APPCONFIG
+  # ============================================================
+  AppConfigApplication:
+    Type: AWS::AppConfig::Application
+    Properties:
+      Name: FinancialAIAssistant
+      Description: Configuration for Financial AI Assistant model selection
+
+  AppConfigEnvironment:
+    Type: AWS::AppConfig::Environment
+    Properties:
+      ApplicationId: !Ref AppConfigApplication
+      Name: !Ref Environment
+      Description: !Sub '${Environment} environment for model selection'
+
+  AppConfigProfile:
+    Type: AWS::AppConfig::ConfigurationProfile
+    Properties:
+      ApplicationId: !Ref AppConfigApplication
+      Name: ModelSelectionStrategy
+      LocationUri: hosted
+      Description: Dynamic model selection strategy
+
+  AppConfigDeploymentStrategy:
+    Type: AWS::AppConfig::DeploymentStrategy
+    Properties:
+      Name: !Sub 'financial-ai-deploy-strategy-${Environment}'
+      DeploymentDurationInMinutes: 0
+      GrowthFactor: 100
+      ReplicateTo: NONE
+      FinalBakeTimeInMinutes: 0
+
+  # ============================================================
+  # CLOUDWATCH ALARMS
+  # ============================================================
+  PrimaryModelErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'financial-ai-primary-errors-${Environment}'
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ModelAbstractionLambda
+
+  ApiGateway5xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'financial-ai-api-5xx-${Environment}'
+      MetricName: 5XXError
+      Namespace: AWS/ApiGateway
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ApiName
+          Value: !Sub 'financial-ai-api-${Environment}'
+
+# ============================================================
+# OUTPUTS
+# ============================================================
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/generate'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiEndpoint'
+
+  HealthEndpoint:
+    Description: Health check endpoint URL
+    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/health'
+    Export:
+      Name: !Sub '${AWS::StackName}-HealthEndpoint'
+
+  StateMachineArn:
+    Description: Step Functions state machine ARN
+    Value: !GetAtt CircuitBreakerStateMachine.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-StateMachineArn'
+
+  PrimaryLambdaArn:
+    Description: Primary model Lambda ARN
+    Value: !GetAtt ModelAbstractionLambda.Arn
+
+  FallbackLambdaArn:
+    Description: Fallback model Lambda ARN
+    Value: !GetAtt FallbackModelLambda.Arn
+
+  AppConfigApplicationId:
+    Description: AppConfig Application ID
+    Value: !Ref AppConfigApplication
+
+  ApiGatewayId:
+    Description: API Gateway ID (for Route53 failover)
+    Value: !Ref ApiGateway
